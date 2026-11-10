@@ -16,9 +16,13 @@ namespace MingRay
 
         protected Texture2D texture = null;
         private Color[] tfCols;
+        protected Texture2D textureForGUI = null;
+        private Color[] tfColsForGUI;
 
         private const int TEXTURE_WIDTH = 1024;
         private const int TEXTURE_HEIGHT = 2;
+
+        public float gamma { get; set; } = 1f;
 
         public void AddControlPoint(TFColourControlPoint ctrlPoint)
         {
@@ -38,10 +42,21 @@ namespace MingRay
             return texture;
         }
 
+        public Texture2D GetTextureForGUI()
+        {
+            if (textureForGUI == null)
+                GenerateTexture();
+
+            return textureForGUI;
+        }
+
         public void GenerateTexture()
         {
             if (texture == null)
                 CreateTexture();
+
+            if (textureForGUI == null)
+                CreateTextureForGUI();
 
             List<TFColourControlPoint> cols = new List<TFColourControlPoint>(colourControlPoints);
             List<TFAlphaControlPoint> alphas = new List<TFAlphaControlPoint>(alphaControlPoints);
@@ -81,23 +96,36 @@ namespace MingRay
                 TFAlphaControlPoint rightAlpha = alphas[iCurrAlpha + 1];
 
                 float tCol = (Mathf.Clamp(t, leftCol.dataValue, rightCol.dataValue) - leftCol.dataValue) / (rightCol.dataValue - leftCol.dataValue);
-                float tAlpha = (Mathf.Clamp(t, leftAlpha.dataValue, rightAlpha.dataValue) - leftAlpha.dataValue) / (rightAlpha.dataValue - leftAlpha.dataValue);
+                float tAlpha = (Mathf.Clamp(t, leftAlpha.dataValue, rightAlpha.dataValue) - leftAlpha.dataValue) / (rightAlpha.dataValue - leftAlpha.dataValue);                
 
                 tCol = Mathf.SmoothStep(0.0f, 1.0f, tCol);
                 tAlpha = Mathf.SmoothStep(0.0f, 1.0f, tAlpha);
 
                 Color pixCol = rightCol.colourValue * tCol + leftCol.colourValue * (1.0f - tCol);
+                
                 pixCol.a = rightAlpha.alphaValue * tAlpha + leftAlpha.alphaValue * (1.0f - tAlpha);
 
                 for (int iY = 0; iY < TEXTURE_HEIGHT; iY++)
                 {
                     tfCols[iX + iY * TEXTURE_WIDTH] = QualitySettings.activeColorSpace == ColorSpace.Linear ? pixCol.linear : pixCol;
                 }
+
+
+                pixCol.a = applyGamma(rightAlpha.alphaValue * tAlpha + leftAlpha.alphaValue * (1.0f - tAlpha), gamma);
+                for (int iY = 0; iY < TEXTURE_HEIGHT; iY++)
+                {
+                    tfColsForGUI[iX + iY * TEXTURE_WIDTH] = QualitySettings.activeColorSpace == ColorSpace.Linear ? pixCol.linear : pixCol;
+                }
             }
 
             texture.wrapMode = TextureWrapMode.Clamp;
             texture.SetPixels(tfCols);
             texture.Apply();
+
+            textureForGUI.wrapMode = TextureWrapMode.Clamp;
+            textureForGUI.SetPixels(tfColsForGUI);
+            textureForGUI.Apply();
+
         }
 
         public Color GetColour(float x)
@@ -111,6 +139,28 @@ namespace MingRay
             TextureFormat texformat = SystemInfo.SupportsTextureFormat(TextureFormat.RGBAHalf) ? TextureFormat.RGBAHalf : TextureFormat.RGBAFloat;
             texture = new Texture2D(TEXTURE_WIDTH, TEXTURE_HEIGHT, texformat, false);
             tfCols = new Color[TEXTURE_WIDTH * TEXTURE_HEIGHT];
+        }
+
+        private void CreateTextureForGUI()
+        {
+            TextureFormat texformat = SystemInfo.SupportsTextureFormat(TextureFormat.RGBAHalf) ? TextureFormat.RGBAHalf : TextureFormat.RGBAFloat;
+            textureForGUI = new Texture2D(TEXTURE_WIDTH, TEXTURE_HEIGHT, texformat, false);
+            tfColsForGUI = new Color[TEXTURE_WIDTH * TEXTURE_HEIGHT];
+        }
+
+        private Vector2 PrepPos(Vector2 pos)
+        {
+            return new Vector2(pos.x, applyGamma(pos.y, gamma));
+        }
+
+        private Vector2 UnprepPos(Vector2 pos)
+        {
+            return new Vector2(pos.x, applyGamma(pos.y, 1.0f / gamma));
+        }
+
+        private float applyGamma(float value, float gamma)
+        {
+            return Mathf.Pow(value, gamma);
         }
     }
 }
