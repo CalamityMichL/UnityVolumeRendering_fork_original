@@ -4,6 +4,7 @@
     {
         _HistTex ("Histogram Texture", 2D) = "white" {}
         _TFTex("Transfer Function Texture", 2D) = "white" {}
+        _gamma("gamma used for gamma correction of alpha values", Float) = 1.0
     }
     SubShader
     {
@@ -36,6 +37,8 @@
             Texture2D _HistTex;             SamplerState sampler_HistTex;
             Texture2D _TFTex;               SamplerState sampler_TFTex;
 
+            float _gamma;
+
             float4 _TFTex_ST;
 
             v2f vert (appdata v)
@@ -52,14 +55,20 @@
                 float density = i.uv.x;
                 float histY = _HistTex.Sample(sampler_HistTex, float2(density, 0.0f)).r;
                 half4 tfCol = _TFTex.Sample(sampler_TFTex, float2(density, 0.0f));
-                half4 histCol = histY > i.uv.y ? half4(1.0f, 1.0f, 1.0f, 1.0f) : half4(0.0f, 0.0f, 0.0f, 0.0f);
-
-                float alpha = tfCol.a;
+                float4 histCol = histY > i.uv.y ? float4(1.0f, 0.0f, 0.0f, 1.0f) : float4(0.0f, 0.0f, 0.0f, 0.0f);               
+                
+                float alpha = tfCol.a;                
                 if (i.uv.y > alpha)
-                    tfCol.a = 0.0f;
+                {
+                    tfCol = float4(0.0f, 0.0f, 0.0f, 1.0f);
+                }
+                else
+                {                    
+                    tfCol.a = pow(tfCol.a, 1.0f/_gamma);
+                }                
 
-                half4 col = histCol * 0.5f + tfCol * 0.7f;
-
+                float4 col = histCol * 0.02f + tfCol * 0.7f;
+                
                 return col;
             }
             ENDHLSL
